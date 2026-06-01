@@ -1,0 +1,53 @@
+name: JioMart Price Monitor
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # Every hour at :00
+  workflow_dispatch:        # Manual trigger from GitHub UI
+
+jobs:
+  price-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Pull existing log from previous runs (stored as artifact)
+      - name: Download previous price log
+        uses: actions/download-artifact@v4
+        with:
+          name: price-log
+          path: .
+        continue-on-error: true   # First run won't have one
+
+      - name: Run price monitor
+        env:
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: python scraper.py
+
+      # Save updated log so next run can download it
+      - name: Upload price log artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: price-log
+          path: price_log.csv
+          retention-days: 90
+          overwrite: true
