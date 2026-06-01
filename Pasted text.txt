@@ -1,0 +1,877 @@
+import requests
+from bs4 import BeautifulSoup
+import smtplib
+import os
+import csv
+import re
+import time
+import random
+from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+
+# ── SKU Data ──────────────────────────────────────────────────────────────────
+SKUS = [
+    {
+        "sku_id": "LL2124323-S-PM12745",
+        "title": "Nordic Adjustable Black Metal Reading Lamp with Solid Natural Wood Base",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/nordic-adjustable-black-colour-metal-reading-lamp-with-solid-natural-wood-base-2124323.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Minimalist-Adjustable-Reading-Natural/dp/B0C6F85PLS?th=1",
+        "myntra_url": "https://www.myntra.com/table-lamps/homesake/homesake-warm-yellow-metal-bell-solid-high-quality-electrical-table-lamps/23437168/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-white-metal-nordic-style-modern-minimalist-adjustable-reading-table-lamp/p-mp000000019289767",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2286484-S-PM12745",
+        "title": "White Modern Floor Lamp",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/white-modern-floor-lamp-2286484.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Traditional-Farmhouse-Mid-Century-Standing/dp/B0FHKFKW29?th=1",
+        "myntra_url": "",
+        "tatacliq_url": "https://www.tatacliq.com/modern-farmhouse-boho-floor-lamp-with-linen-multicolor-shade/p-mp000000028388021",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2124305-S-PM12745",
+        "title": "Beige Floor Lamp with Wooden Base",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/beige-floor-lamp-with-wooden-base-2124305.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Floor-Lamp-Wooden-Beige/dp/B0CD3SH24G?th=1",
+        "myntra_url": "https://www.myntra.com/floor-lamps/homesake/homesake-brown--black-metal-floor-lamp-with-jute-shade/28435844/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-brown-metal-floor-lamp-with-wooden-base/p-mp000000019289421",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2049168-S-PM12745",
+        "title": "Kilda Black Metal Hanging Light",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/kilda-black-metal-hanging-light-2049168.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Metallic-Pendant-Hanging-Industrial/dp/B07C7GJL1D",
+        "myntra_url": "https://www.myntra.com/ceiling-lamps/homesake/homesake-black--gold-toned-solid-contemporary-hanging-smart-lamp/14172236/buy",
+        "tatacliq_url": "",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2203558-S-PM12745",
+        "title": "Modern Small Crystal Table Lamp Contemporary Bedroom Bedside Nightstand",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/modern-small-crystal-table-lamp-contemporary-bedroom-bedside-nightstand-lamp-desk-2203558.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Crystal-Contemporary-Bedroom-Nightstand/dp/B0CK6TYPL8?th=1",
+        "myntra_url": "https://www.myntra.com/table-lamps/homesake/homesake-pink-and-white-textured-metal-frustum-shaped-table-lamp/32352243/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-pink-metal-table-lamp-with-shade/p-mp000000021049877",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2134821-S-PM12745",
+        "title": "Lotus Gold Metal Crystal Ceiling Flush Mount Light",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/lotus-gold-metal-crystal-ceiling-flush-mount-light-2134821.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Crystal-Ceiling-Hallway-Fixture/dp/B0CFLGY5Q9?th=1",
+        "myntra_url": "https://www.myntra.com/ceiling-lamps/homesake/homesake--gold-toned-metal-lotus-crystal-flush-mount-ceiling-lamp/24495386/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-gold-metal-lotus-crystal-flush-mount-ceiling-light/p-mp000000019288860",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2235890-S-PM12745",
+        "title": "Sky Inverted Standing Lamp with Acrylic Shade Modern Floor Lamp",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/sky-inverted-standing-lamps-with-acrylic-shade-modern-floor-lamp-for-living-room-2235890.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Inverted-Standing-Bedrooms-Straight/dp/B0DFTRJ5XV?th=1",
+        "myntra_url": "https://www.myntra.com/floor-lamps/homesake/homesake-black--white-metal-acrylic-tulip-shaped-standing-floor-lamp/30914539/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-sky-inverted-modern-floor-lamp-with-black-acrylic-shade/p-mp000000023972525",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL1663164-S-PM12745",
+        "title": "Westin Black Metal Hanging Light",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/westin-black-metal-hanging-light-1663164.html",
+        "amazon_url": "https://www.amazon.in/Homesake-A893-Metallic-Hanging-Pendant/dp/B073V2BH6D",
+        "myntra_url": "https://www.myntra.com/ceiling-lamps/homesake/homesake-black--gold-toned-solid-contemporary-hanging-smart-lamp/14172236/buy",
+        "tatacliq_url": "",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2286453-S-PM12745",
+        "title": "Industrial Tree Black Floor Lamp",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/industrial-tree-black-floor-lamps-2286453.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Industrial-Living-Standing-Frosted/dp/B0CRDVGP6Z",
+        "myntra_url": "https://www.myntra.com/hatke/a/products/25473938/buy?ep=rd_111108516",
+        "tatacliq_url": "https://www.tatacliq.com/industrial-tree-floor-lamp-frosted-glass-globes-e27-socket-pedal-switch-black/p-mp000000028388008",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2208880-S-PM20949",
+        "title": "Sadie Shine Brass Metal Finish Wall Light with Scalloped Edges Shade",
+        "brand": "Kapoor Lamp Shades",
+        "pf_url": "https://www.pepperfry.com/product/sadie-shine-brass-metal-finish-wall-light-with-scalloped-edges-shade-2208880.html",
+        "amazon_url": "https://www.amazon.in/KAPOOR-LAMP-SHADES-Finish-Pleated/dp/B0FTVRRZK7",
+        "myntra_url": "",
+        "tatacliq_url": "",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2037843-S-PM12745",
+        "title": "Dorian Khaki Cotton Shade Shelf Floor Lamp with Metal Base",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/dorian-khaki-cotton-shade-shelf-floor-lamp-with-metal-base-2037843.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Contemporary-Bedside-Living-Office/dp/B09PNJFLDC?th=1",
+        "myntra_url": "https://www.myntra.com/floor-lamps/homesake/homesake-white---gold-toned-duo-shelf-metal-floor-lamp/17205940/buy",
+        "tatacliq_url": "",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2049458-S-PM12745",
+        "title": "Tarter Beige Wood Hanging Light",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/tarter-beige-wood-hanging-light-2049458.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Pendant-Balcony-Ceiling-Hanging/dp/B07XW616KG?th=1",
+        "myntra_url": "https://www.myntra.com/ceiling-lamps/homesake/homesake-brown-textured-handcrafted-pendant-lamp/10757564/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-beaded-swag-beige-wood-round-shaped-pendant-ceiling-hanging-light/p-mp000000014384226",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2308732-S-PM20623",
+        "title": "Transitional Bedside Wall Sconce with Flexible LED Reading Light",
+        "brand": "Fos Lighting",
+        "pf_url": "https://www.pepperfry.com/product/transitional-bedside-wall-sconce-with-flexible-led-reading-light-2308732.html",
+        "amazon_url": "https://www.amazon.in/Fos-Lighting-Bedside-Flexible-Reading/dp/B09ZQSYJF2",
+        "myntra_url": "",
+        "tatacliq_url": "https://www.tatacliq.com/fos-lighting-gold-mild-steel-traditional-antique-wall-lamp/p-mp000000029435202",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2286480-S-PM12745",
+        "title": "Brown Modern Floor Lamp",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/brown-modern-floor-lamp-2286480.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Modern-Traditional-Farmhouse-Mid-Century/dp/B0CX96SKHB",
+        "myntra_url": "https://www.myntra.com/floor-lamps/homesake/homesake-brown--black-metal-floor-lamp-with-jute-shade/28435844/buy",
+        "tatacliq_url": "https://www.tatacliq.com/modern-farmhouse-boho-floor-lamp-with-khadi-linen-shade/p-mp000000028388006",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2263196-S-PM41468",
+        "title": "Ceiling Lamps Bamboo Hanging Lights Bamboo Pendant Light",
+        "brand": "Habere India",
+        "pf_url": "https://www.pepperfry.com/product/ceiling-lamps-for-living-room-bamboo-hanging-lights-for-balcony-bamboo-pendant-li-2263196.html",
+        "amazon_url": "https://www.amazon.in/Habere-India-All-Cultures-Fabricating-India/dp/B0FLPZT862?th=1",
+        "myntra_url": "",
+        "tatacliq_url": "",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2251229-S-PM20623",
+        "title": "Antique Cast Aluminium Traditional Uplight Wall Sconce with Golden Etched Glass",
+        "brand": "Fos Lighting",
+        "pf_url": "https://www.pepperfry.com/product/antique-cast-aluminium-traditional-uplight-wall-sconce-with-golden-etched-glass-2251229.html",
+        "amazon_url": "",
+        "myntra_url": "",
+        "tatacliq_url": "https://www.tatacliq.com/fos-lighting-antique-cast-aluminium-traditional-uplight-wall-sconce-with-golden-etched-glass/p-mp000000027128289",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2308737-S-PM20623",
+        "title": "Double Coastal Wall Sconce",
+        "brand": "Fos Lighting",
+        "pf_url": "https://www.pepperfry.com/product/double-coastal-wall-sconce-2308737.html",
+        "amazon_url": "",
+        "myntra_url": "",
+        "tatacliq_url": "https://www.tatacliq.com/fos-lighting-green-aluminium-double-coastal-wall-lamp/p-mp000000029435218",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2049500-S-PM12745",
+        "title": "Whartin Black Metal Cluster Hanging Light",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/whartin-black-metal-cluster-hanging-light-2049500.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Cluster-Modern-Decoration-Chandelier-Contemporary/dp/B079M6WDL8",
+        "myntra_url": "https://www.myntra.com/ceiling-lamps/homesake/homesake-black-solid-handcrafted-cluster-lights/9547303/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-3-lights-linear-cluster-black-metal-diamond-pendant-light--set-of-1-bulb-not-included/p-mp000000008740274",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2049282-S-PM12745",
+        "title": "Arcadio Blue Glass Hanging Light",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/arcadio-blue-glass-hanging-light-2049282.html",
+        "amazon_url": "https://www.amazon.in/HomesakeTM-Turkish-Moroccan-Chandelier-Handmade/dp/B07R5FCBNL?th=1",
+        "myntra_url": "https://www.myntra.com/ceiling-lamps/homesake/homesake-blue-embellished-handcrafted-turkish-moroccan-mosaic-hanging-light/11065318/buy",
+        "tatacliq_url": "",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2232483-S-PM5621",
+        "title": "Kurashi Drop Hanging Lamp",
+        "brand": "Orangetree",
+        "pf_url": "https://www.pepperfry.com/product/kurashi-drop-hanging-lamp-2232483.html",
+        "amazon_url": "", "myntra_url": "", "tatacliq_url": "",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2232416-S-PM5621",
+        "title": "Fanny Floor Lamp",
+        "brand": "Orangetree",
+        "pf_url": "https://www.pepperfry.com/product/fanny-floor-lamp-2232416.html",
+        "amazon_url": "", "myntra_url": "", "tatacliq_url": "",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2280984-S-PM20623",
+        "title": "Frosted 6 Inch Globe Pendant Light with Antique Brass Fixture",
+        "brand": "Fos Lighting",
+        "pf_url": "https://www.pepperfry.com/product/frosted-6-inch-globe-pendant-light-with-antique-brass-fixture-2280984.html",
+        "amazon_url": "",
+        "myntra_url": "",
+        "tatacliq_url": "https://www.tatacliq.com/fos-lighting-frosted-6-inch-globe-pendant-light-with-antique-brass-fixture/p-mp000000027130251",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2049643-S-PM12745",
+        "title": "Marino Black Metal Cluster Hanging Light",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/marino-black-metal-cluster-hanging-light-2049643.html",
+        "amazon_url": "https://www.amazon.in/HomesakeTM-3-Lights-Cluster-Chandelier-Filament/dp/B07PGS9KJ5",
+        "myntra_url": "https://www.myntra.com/ceiling-lamps/homesake/homesake-transparent-solid-handcrafted-cluster-lights/9674201/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-3-lights-linear-cluster-black-metal-modern-glass-globe-pendant-light--set-of-1/p-mp000000008740518",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2049225-S-PM12745",
+        "title": "Lampost Blue Glass Hanging Light",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/lampost-blue-glass-hanging-light-2049225.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Industrial-Lampshade-Filament-Turquoise/dp/B07HMH6F28?th=1",
+        "myntra_url": "https://www.myntra.com/ceiling-lamps/homesake/homesake-blue-self-design-handcrafted-hanging-light/9215223/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-turquoise-glass-ribbed-hanging-lamp--set-of-1-bulb-not-included/p-mp000000006243888",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2022906-S-PM12745",
+        "title": "White Metal Wall Light",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/white-metal-wall-light-by-homesake-2022906.html",
+        "amazon_url": "https://www.amazon.in/HomesakeTM-Metallic-Gooseneck-Nightstand-Warehouse/dp/B07QHXH3K2?th=1",
+        "myntra_url": "",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-white-pendant-wall-lamp--set-of-1/p-mp000000006947983",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2049277-S-PM12745",
+        "title": "Belfast Black Metal Hanging Light",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/belfast-black-metal-hanging-light-by-homesake-2049277.html",
+        "amazon_url": "", "myntra_url": "", "tatacliq_url": "",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2235874-S-PM12745",
+        "title": "Wood Tripod Small Table Lamp Rustic Antique Dimmable Bedside Lamp",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/wood-tripod-small-table-lamps-rustic-antique-dimmable-bedside-lamp-with-linen-be-2235874.html",
+        "amazon_url": "https://www.amazon.in/Antique-Dimmable-Bedside-Lampshade-Nightstand/dp/B0DF31B1LG?th=1",
+        "myntra_url": "https://www.myntra.com/table-lamps/homesake/homesake-turquoise-blue-contemporary-frusturical-shaped-wooden-table-lamps/30741685/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-beige-wood-antique-tripod-small-table-lamps/p-mp000000023972188",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2232482-S-PM5621",
+        "title": "Kurashi Oval Hanging Lamp",
+        "brand": "Orangetree",
+        "pf_url": "https://www.pepperfry.com/product/kurashi-oval-hanging-lamp-2232482.html",
+        "amazon_url": "",
+        "myntra_url": "",
+        "tatacliq_url": "https://luxury.tatacliq.com/orangetree-clear-glass-and-antique-finish-on-metal-kurashi-oval-hanging-lamp/p-mp000000016226147",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2203655-S-PM12745",
+        "title": "Hand Woven Metal Pendant Lamp Beige Black",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/hand-woven-metal-with-pendant-lamp-beige-balck-2203655.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Handcrafted-Pendant-Light-Collection/dp/B0CSPD9PXG?th=1",
+        "myntra_url": "https://www.myntra.com/ceiling-lamps/homesake/homesake-beige-textured-cylinder-wooded-contemporary-ceiling-lamp/27088588/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-collection-woven-rattan-cane-webbing-natural-12-pendant-light/p-mp000000023972358",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2281983-S-PM36889",
+        "title": "Ball Wall Lamp Brass Antique Finish with Cup Glass Golden Luster Shade",
+        "brand": "Unknown",
+        "pf_url": "https://www.pepperfry.com/product/ball-wall-lamp-brass-antique-finish-with-cup-glass-golden-luster-shade-2281983.html",
+        "amazon_url": "", "myntra_url": "", "tatacliq_url": "",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2124327-S-PM12745",
+        "title": "Modern Small Ceramic Night Table Lamp with Turquoise Fabric Shade",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/modern-small-ceramic-night-table-lamp-with-turquoise-fabric-shade-2124327.html",
+        "amazon_url": "https://www.amazon.in/Homesake-Ceramic-Classic-Farmhouse-Nightstand/dp/B0C8DK4P78?th=1",
+        "myntra_url": "https://www.myntra.com/table-lamps/homesake/homesake-blue-ceramic-frustum-shaped-table-lamp/32352250/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-turquoise-ceramic-modern-classic-bedside-desk-farmhouse-table-lamp/p-mp000000019289773",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+    {
+        "sku_id": "LL2022919-S-PM12745",
+        "title": "Black Metal Wall Light",
+        "brand": "Homesake",
+        "pf_url": "https://www.pepperfry.com/product/black-metal-wall-light-by-homesake-2022919.html",
+        "amazon_url": "https://www.amazon.in/HomesakeTM-Vintage-Industrial-Decorative-Movement/dp/B07RQXNQRL?th=1",
+        "myntra_url": "https://www.myntra.com/wall-lamps/homesake/-homesake-unisex-black-wall-lamps/18870758/buy",
+        "tatacliq_url": "https://www.tatacliq.com/homesake-black-edison-360-cone-shade-wall-lamp--set-of-1/p-mp000000006948012",
+        "pf_mrp": 0, "pf_price": 0,
+    },
+]
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-IN,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
+
+LOG_FILE = "price_log.csv"
+ALERT_EMAIL = os.environ.get("ALERT_EMAIL", "")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "")
+SENDER_PASSWORD = os.environ.get("SENDER_PASSWORD", "")
+
+PLATFORMS = ["amazon", "myntra", "tatacliq"]
+
+
+# ── Scrapers ──────────────────────────────────────────────────────────────────
+
+def _parse_price(text):
+    if not text:
+        return None
+    cleaned = re.sub(r"[^\d.]", "", text.replace(",", ""))
+    try:
+        val = float(cleaned)
+        return val if val > 0 else None
+    except ValueError:
+        return None
+
+
+def scrape_pepperfry(url):
+    try:
+        time.sleep(random.uniform(2, 4))
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        offer = None
+        for sel in [".pdp-selling-price", ".selling-price", ".special-price",
+                    "[data-price]", ".price-box .price"]:
+            el = soup.select_one(sel)
+            if el:
+                offer = _parse_price(el.get_text())
+                if offer:
+                    break
+        mrp = None
+        for sel in [".pdp-mrp", ".old-price", ".regular-price", ".price-box .old-price"]:
+            el = soup.select_one(sel)
+            if el:
+                val = _parse_price(el.get_text())
+                if val and val != offer:
+                    mrp = val
+                    break
+        return {"mrp": mrp, "offer": offer, "error": None}
+    except Exception as e:
+        return {"mrp": None, "offer": None, "error": str(e)}
+
+
+def scrape_amazon(url):
+    try:
+        time.sleep(random.uniform(2, 4))
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        offer = None
+        for sel in [".a-price .a-offscreen", "#priceblock_ourprice",
+                    "#priceblock_dealprice", "#price_inside_buybox"]:
+            el = soup.select_one(sel)
+            if el:
+                offer = _parse_price(el.get_text())
+                if offer:
+                    break
+        mrp = None
+        el = soup.select_one(".a-text-price .a-offscreen")
+        if el:
+            mrp = _parse_price(el.get_text())
+        return {"mrp": mrp, "offer": offer, "error": None}
+    except Exception as e:
+        return {"mrp": None, "offer": None, "error": str(e)}
+
+
+def scrape_myntra(url):
+    try:
+        time.sleep(random.uniform(2, 4))
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        offer = None
+        for sel in [".pdp-price strong", ".pdp-discount-container .pdp-price",
+                    ".pdp-price", "[class*='discountedPrice']"]:
+            el = soup.select_one(sel)
+            if el:
+                offer = _parse_price(el.get_text())
+                if offer:
+                    break
+        mrp = None
+        for sel in [".pdp-mrp s", ".pdp-mrp", "[class*='strikeThroughPrice']"]:
+            el = soup.select_one(sel)
+            if el:
+                val = _parse_price(el.get_text())
+                if val and val != offer:
+                    mrp = val
+                    break
+        return {"mrp": mrp, "offer": offer, "error": None}
+    except Exception as e:
+        return {"mrp": None, "offer": None, "error": str(e)}
+
+
+def scrape_tatacliq(url):
+    try:
+        time.sleep(random.uniform(2, 4))
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        offer = None
+        for sel in [".ProductDetailsMainCard__offerPrice",
+                    ".pdp-offer-price", "[class*='offerPrice']",
+                    "[class*='sellingPrice']"]:
+            el = soup.select_one(sel)
+            if el:
+                offer = _parse_price(el.get_text())
+                if offer:
+                    break
+        mrp = None
+        for sel in [".ProductDetailsMainCard__mrp", "[class*='mrpPrice']",
+                    "[class*='originalPrice']"]:
+            el = soup.select_one(sel)
+            if el:
+                val = _parse_price(el.get_text())
+                if val and val != offer:
+                    mrp = val
+                    break
+        return {"mrp": mrp, "offer": offer, "error": None}
+    except Exception as e:
+        return {"mrp": None, "offer": None, "error": str(e)}
+
+
+# ── Comparison logic ──────────────────────────────────────────────────────────
+
+def calc_diff_pct(pf_price, ic_offer):
+    if pf_price and ic_offer and pf_price > 0:
+        return round(((ic_offer - pf_price) / pf_price) * 100, 2)
+    return None
+
+
+def calc_discount_depth(offer, mrp):
+    if mrp and offer and mrp > 0:
+        return round(((mrp - offer) / mrp) * 100, 1)
+    return None
+
+
+def get_comp_flag(diff_pct):
+    if diff_pct is None:
+        return "?"
+    return "Y" if diff_pct >= 0 else "N"
+
+
+def get_uncomp_band(diff_pct, comp_flag):
+    if diff_pct is None:
+        return "N/A"
+    if comp_flag == "Y":
+        return "Comp&<=2%" if abs(diff_pct) <= 2 else "Comp&>2%"
+    abs_diff = abs(diff_pct)
+    if abs_diff < 5:
+        return "<5%"
+    elif abs_diff < 10:
+        return "5%-10%"
+    else:
+        return ">=10%"
+
+
+def get_margin_flag(pf_depth, ic_depth):
+    if pf_depth is None or ic_depth is None:
+        return "N/A", None
+    gap = round(pf_depth - ic_depth, 1)
+    if gap > 5:
+        return "Over-discounting", gap
+    elif gap < -5:
+        return "Under-discounting", gap
+    else:
+        return "In-line", gap
+
+
+# ── Main runner ───────────────────────────────────────────────────────────────
+
+def run_checks():
+    results = []
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    for sku in SKUS:
+        print(f"\nChecking {sku['sku_id']} ...")
+
+        # Scrape Pepperfry live price
+        pf_price = sku["pf_price"]
+        pf_mrp = sku["pf_mrp"]
+        pf_scraped = scrape_pepperfry(sku["pf_url"])
+        if pf_scraped["offer"]:
+            pf_price = pf_scraped["offer"]
+        if pf_scraped["mrp"]:
+            pf_mrp = pf_scraped["mrp"]
+        print(f"  PF: ₹{pf_price}")
+
+        # Scrape all three competitor platforms
+        platform_data = {}
+        for platform, url_key, scraper_fn in [
+            ("Amazon",    "amazon_url",   scrape_amazon),
+            ("Myntra",    "myntra_url",   scrape_myntra),
+            ("Tata Cliq", "tatacliq_url", scrape_tatacliq),
+        ]:
+            url = sku.get(url_key, "")
+            if not url:
+                platform_data[platform] = {"offer": None, "mrp": None, "error": "No URL"}
+                continue
+            scraped = scraper_fn(url)
+            platform_data[platform] = scraped
+            print(f"  {platform}: ₹{scraped['offer']} | error: {scraped['error']}")
+
+        # Build one result row per competitor platform
+        for platform, data in platform_data.items():
+            ic_offer = data.get("offer")
+            ic_mrp = data.get("mrp")
+            url = sku.get({"Amazon": "amazon_url", "Myntra": "myntra_url",
+                           "Tata Cliq": "tatacliq_url"}[platform], "")
+
+            diff_pct = calc_diff_pct(pf_price, ic_offer)
+            comp_flag = get_comp_flag(diff_pct)
+            uncomp_band = get_uncomp_band(diff_pct, comp_flag)
+            pf_depth = calc_discount_depth(pf_price, pf_mrp)
+            ic_depth = calc_discount_depth(ic_offer, ic_mrp)
+            margin_flag, margin_gap = get_margin_flag(pf_depth, ic_depth)
+
+            row = {
+                "timestamp": timestamp,
+                "SKU ID": sku["sku_id"],
+                "SKU Title": sku["title"],
+                "Brand": sku["brand"],
+                "Platform": platform,
+                "IC URL": url,
+                "PF MRP": pf_mrp or "",
+                "PF Price": pf_price or "",
+                "PF Discount Depth %": pf_depth or "",
+                "IC MRP": ic_mrp or "",
+                "IC Offer": ic_offer or "",
+                "IC Discount Depth %": ic_depth or "",
+                "Price Difference %": diff_pct if diff_pct is not None else "",
+                "Discount Gap %": margin_gap if margin_gap is not None else "",
+                "Margin Flag": margin_flag,
+                "Comp Flag": comp_flag,
+                "Uncomp Band": uncomp_band,
+                "Scrape Error": data.get("error") or "",
+            }
+            results.append(row)
+
+    return results
+
+
+def append_to_log(results):
+    file_exists = os.path.isfile(LOG_FILE)
+    with open(LOG_FILE, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=results[0].keys())
+        if not file_exists:
+            writer.writeheader()
+        writer.writerows(results)
+    print(f"\nLogged {len(results)} rows to {LOG_FILE}")
+
+
+# ── Email ─────────────────────────────────────────────────────────────────────
+
+STYLES = """
+  body { margin:0; padding:0; background:#f4f4f0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }
+  .wrap { max-width:520px; margin:0 auto; padding:24px 16px; }
+  .card { background:#fff; border-radius:14px; border:1px solid #e8e8e4; padding:18px; margin-bottom:12px; }
+  .label { font-size:10px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:#999; margin-bottom:4px; }
+  .big { font-size:26px; font-weight:600; color:#111; }
+  .tag-green { display:inline-block; background:#eaf7ef; color:#1a7f45; font-size:10px; font-weight:600; padding:2px 8px; border-radius:20px; }
+  .tag-red { display:inline-block; background:#fde8e7; color:#c0392b; font-size:10px; font-weight:600; padding:2px 8px; border-radius:20px; }
+  .insight { background:#1a56db; border-radius:14px; padding:18px; color:#fff; margin-bottom:12px; }
+  table.t { width:100%; border-collapse:collapse; font-size:11px; }
+  table.t th { text-align:left; padding:5px 4px; color:#999; font-weight:600; font-size:10px; text-transform:uppercase; border-bottom:1px solid #f0f0ec; }
+  table.t td { padding:7px 4px; border-bottom:1px solid #f8f8f6; color:#333; vertical-align:middle; }
+  .footer { text-align:center; font-size:11px; color:#aaa; padding-top:20px; }
+"""
+
+PLATFORM_COLORS = {
+    "Amazon":    {"bg": "#ff9900", "label": "A"},
+    "Myntra":    {"bg": "#ff3f6c", "label": "M"},
+    "Tata Cliq": {"bg": "#6b1c7e", "label": "T"},
+}
+
+
+def _platform_badge(platform):
+    p = PLATFORM_COLORS.get(platform, {"bg": "#888", "label": platform[0]})
+    return (f'<span style="display:inline-flex;align-items:center;justify-content:center;'
+            f'width:18px;height:18px;border-radius:4px;background:{p["bg"]};'
+            f'color:#fff;font-size:9px;font-weight:700;">{p["label"]}</span>')
+
+
+def _sku_alert_card(sku_id, title, pf_price, alerts_for_sku):
+    rows = ""
+    for a in alerts_for_sku:
+        diff = a["Price Difference %"]
+        gap = abs(round((a["IC Offer"] - pf_price))) if a.get("IC Offer") else 0
+        rows += f"""
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    padding:8px 0;border-bottom:1px solid #f8f8f6;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            {_platform_badge(a['Platform'])}
+            <span style="font-size:12px;color:#666;">{a['Platform']}: 
+              <strong style="color:#c0392b;">&#8377;{a['IC Offer']}</strong>
+            </span>
+          </div>
+          <div style="text-align:right;">
+            <span style="font-size:12px;font-weight:600;color:#c0392b;">{diff}%</span>
+            <span style="font-size:11px;color:#aaa;margin-left:4px;">(-&#8377;{gap})</span>
+          </div>
+        </div>"""
+
+    return f"""
+    <div class="card">
+      <div style="margin-bottom:10px;">
+        <div style="font-size:13px;font-weight:600;color:#111;">{title[:55]}{'...' if len(title)>55 else ''}</div>
+        <div style="font-size:11px;color:#aaa;margin-top:2px;">SKU: {sku_id}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;
+                  background:#f8f8f6;border-radius:8px;padding:10px;margin-bottom:10px;">
+        <div><div class="label">Pepperfry price</div>
+          <div style="font-size:20px;font-weight:700;color:#111;">&#8377;{pf_price}</div></div>
+        <div style="text-align:right;"><div class="label">Status</div>
+          <span class="tag-red">Undercut on {len(alerts_for_sku)} platform{'s' if len(alerts_for_sku)>1 else ''}</span>
+        </div>
+      </div>
+      {rows}
+    </div>"""
+
+
+def build_alert_email(alerts, all_results):
+    # Group alerts by SKU
+    by_sku = {}
+    pf_prices = {}
+    for a in alerts:
+        sid = a["SKU ID"]
+        if sid not in by_sku:
+            by_sku[sid] = []
+            pf_prices[sid] = a["PF Price"]
+        by_sku[sid].append(a)
+
+    alert_cards = ""
+    for sid, sku_alerts in by_sku.items():
+        title = sku_alerts[0]["SKU Title"]
+        alert_cards += _sku_alert_card(sid, title, pf_prices[sid], sku_alerts)
+
+    n_skus = len(by_sku)
+    n_alerts = len(alerts)
+    ts = datetime.now().strftime('%d %b %Y, %H:%M IST')
+
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{STYLES}</style></head><body>
+    <div class="wrap">
+      <div style="padding:12px 0 8px;">
+        <span style="font-size:13px;font-weight:600;color:#999;">Pepperfry Price Alert</span>
+      </div>
+      <div style="font-size:10px;font-weight:600;letter-spacing:0.1em;color:#c0392b;
+                  text-transform:uppercase;margin-bottom:6px;">&#9888; Critical alert</div>
+      <h1 style="font-size:22px;font-weight:700;color:#111;margin:0 0 18px;line-height:1.3;">
+        {n_skus} SKU{'s' if n_skus>1 else ''} undercut across {n_alerts} competitor listing{'s' if n_alerts>1 else ''}
+      </h1>
+      {alert_cards}
+      <div class="footer">{ts} &middot; Pepperfry Price Monitor &middot; Unsubscribe</div>
+    </div></body></html>"""
+    return html
+
+
+def build_summary_email(results):
+    total_skus = len(set(r["SKU ID"] for r in results))
+    alerts = [r for r in results if r["Comp Flag"] == "N" and r.get("IC Offer")]
+    alert_skus = len(set(a["SKU ID"] for a in alerts))
+    ok_skus = total_skus - alert_skus
+    parity_pct = round((ok_skus / total_skus) * 100) if total_skus else 0
+
+    # Competitive gap: avg diff across all rows with valid data
+    diffs = [r["Price Difference %"] for r in results
+             if isinstance(r.get("Price Difference %"), (int, float))]
+    avg_diff = round(sum(diffs) / len(diffs), 1) if diffs else 0
+    avg_diff_str = f"+{avg_diff}%" if avg_diff >= 0 else f"{avg_diff}%"
+    avg_diff_color = "#1a7f45" if avg_diff >= 0 else "#c0392b"
+
+    # Platform breakdown
+    platform_counts = {}
+    for a in alerts:
+        p = a["Platform"]
+        platform_counts[p] = platform_counts.get(p, 0) + 1
+
+    plat_breakdown = " &middot; ".join(
+        f'{_platform_badge(p)} {cnt}' for p, cnt in platform_counts.items()
+    ) if platform_counts else "None"
+
+    # Per-SKU summary rows (show worst competitor per SKU)
+    sku_rows = ""
+    seen = {}
+    for r in results:
+        sid = r["SKU ID"]
+        diff = r.get("Price Difference %")
+        if not isinstance(diff, (int, float)):
+            continue
+        if sid not in seen or diff < seen[sid]["diff"]:
+            seen[sid] = {"r": r, "diff": diff}
+
+    for sid, entry in seen.items():
+        r = entry["r"]
+        diff = r["Price Difference %"]
+        diff_color = "#1a7f45" if diff >= 0 else "#c0392b"
+        diff_str = f"+{diff}%" if diff >= 0 else f"{diff}%"
+        flag_cls = "color:#1a7f45;font-weight:700;" if r["Comp Flag"] == "Y" else "color:#c0392b;font-weight:700;"
+        sku_rows += f"""<tr>
+          <td style="font-size:10px;max-width:100px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">{sid}</td>
+          <td style="font-size:10px;max-width:120px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">{r['SKU Title'][:25]}…</td>
+          <td>&#8377;{r['PF Price'] or '—'}</td>
+          <td>{_platform_badge(r['Platform'])} &#8377;{r['IC Offer'] or '—'}</td>
+          <td style="color:{diff_color};font-weight:600;">{diff_str}</td>
+          <td style="{flag_cls}">{r['Comp Flag']}</td>
+        </tr>"""
+
+    status_color = "#c0392b" if alert_skus > 0 else "#1a7f45"
+    ts = datetime.now().strftime('%d %b %Y, %H:%M IST')
+
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>{STYLES}</style></head><body>
+    <div class="wrap">
+      <div style="padding:12px 0 8px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;font-weight:600;color:#999;">Pepperfry · Lighting Category</span>
+        <span style="font-size:11px;color:#bbb;">{ts}</span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div class="card" style="padding:14px;">
+          <div class="label">Price parity index</div>
+          <div style="display:flex;align-items:baseline;gap:8px;">
+            <div class="big">{parity_pct}%</div>
+            <span style="font-size:12px;font-weight:600;color:#1a7f45;">&#9650; {ok_skus} SKUs</span>
+          </div>
+        </div>
+        <div class="card" style="padding:14px;">
+          <div class="label">Avg competitive gap</div>
+          <div class="big" style="color:{avg_diff_color};">{avg_diff_str}</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div class="card" style="padding:14px;">
+          <div class="label">Critical price shifts</div>
+          <div style="display:flex;align-items:baseline;gap:8px;">
+            <div class="big" style="color:{status_color};">{len(alerts)}</div>
+            {'<span class="tag-red">Alert active</span>' if alerts else '<span class="tag-green">All clear</span>'}
+          </div>
+        </div>
+        <div class="card" style="padding:14px;">
+          <div class="label">Undercut SKUs</div>
+          <div style="display:flex;align-items:baseline;gap:8px;">
+            <div class="big" style="color:{status_color};">{alert_skus}</div>
+            <span style="font-size:11px;color:#aaa;">of {total_skus}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="insight">
+        <div style="font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;
+                    margin-bottom:6px;color:rgba(255,255,255,0.7);">Platform breakdown</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px;">
+          {"Undercuts by platform: " + plat_breakdown if alerts else "All " + str(total_skus) + " SKUs are competitively priced across Amazon, Myntra and Tata Cliq."}
+        </div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.8);">
+          Average competitive gap: {avg_diff_str} across all checked listings.
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:4px;">Price snapshot — all SKUs</div>
+        <div style="font-size:11px;color:#aaa;margin-bottom:10px;">Showing worst competitor per SKU</div>
+        <table class="t">
+          <thead><tr>
+            <th>SKU ID</th><th>Title</th><th>PF Price</th>
+            <th>Best IC</th><th>Diff %</th><th>Flag</th>
+          </tr></thead>
+          <tbody>{sku_rows}</tbody>
+        </table>
+      </div>
+
+      <div class="footer">
+        Hourly summary &middot; Pepperfry Price Monitor &middot; Unsubscribe
+      </div>
+    </div></body></html>"""
+    return html
+
+
+# ── Send email ────────────────────────────────────────────────────────────────
+
+def send_email(subject, html_body, attach_csv=True):
+    if not SENDER_EMAIL or not SENDER_PASSWORD:
+        print("Email credentials not set — skipping.")
+        return
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = SENDER_EMAIL
+    msg["To"] = ALERT_EMAIL
+    msg.attach(MIMEText(html_body, "html"))
+    if attach_csv and os.path.isfile(LOG_FILE):
+        with open(LOG_FILE, "rb") as f:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(f.read())
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", f'attachment; filename="{LOG_FILE}"')
+            msg.attach(part)
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.sendmail(SENDER_EMAIL, ALERT_EMAIL, msg.as_string())
+        print(f"Email sent: {subject}")
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+
+
+# ── Entry point ───────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    print(f"\n{'='*60}")
+    print(f"Pepperfry Price Monitor — {datetime.now().strftime('%d %b %Y %H:%M:%S')}")
+    print(f"{'='*60}\n")
+
+    results = run_checks()
+    append_to_log(results)
+
+    alerts = [r for r in results if r["Comp Flag"] == "N" and r.get("IC Offer")]
+    alert_skus = set(a["SKU ID"] for a in alerts)
+    print(f"\nResults: {len(alerts)} undercuts across {len(alert_skus)} SKU(s).")
+
+    # Hourly summary — always sent
+    summary_html = build_summary_email(results)
+    n = len(alerts)
+    summary_subject = (
+        f"{'🔴' if n > 0 else '✅'} Pepperfry Price Summary — "
+        f"{n} undercut{'s' if n!=1 else ''} · {datetime.now().strftime('%d %b %H:%M')}"
+    )
+    send_email(summary_subject, summary_html, attach_csv=True)
+
+    # Critical alert — only when undercuts found
+    if alerts:
+        alert_html = build_alert_email(alerts, results)
+        alert_subject = (
+            f"🚨 Price Alert: {len(alert_skus)} SKU{'s' if len(alert_skus)>1 else ''} "
+            f"undercut across {len(alerts)} listing{'s' if len(alerts)>1 else ''} "
+            f"· {datetime.now().strftime('%d %b %H:%M')}"
+        )
+        send_email(alert_subject, alert_html, attach_csv=False)
